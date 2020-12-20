@@ -8,6 +8,7 @@ public class CollisionManager : MonoBehaviour
 {
     public CubeBehaviour[] cubes;
     public BulletBehaviour[] spheres;
+    public PlayerBehaviour player;
     [HideInInspector]
     public RigidBody3D[] rigidbodies;
 
@@ -18,6 +19,7 @@ public class CollisionManager : MonoBehaviour
     {
         cubes = FindObjectsOfType<CubeBehaviour>();
         rigidbodies = FindObjectsOfType<RigidBody3D>();
+        player = FindObjectOfType<PlayerBehaviour>();
 
         faces = new Vector3[]
         {
@@ -38,6 +40,7 @@ public class CollisionManager : MonoBehaviour
         {
             cube.CubeBehaviourUpdate();
         }
+        player.PlayerUpdate();
 
         spheres = FindObjectsOfType<BulletBehaviour>();
 
@@ -114,32 +117,37 @@ public class CollisionManager : MonoBehaviour
         Vector3 directionPlayerToDynamic = (dynamicObject.transform.position - player.transform.position).normalized;
         Contact contactDynamicToPlayer = player.contacts.Find(x => x.cube.gameObject.name == dynamicObject.gameObject.name);
 
-        dynamicObject.transform.position += directionPlayerToDynamic * 
+        Vector3 dynamicDeltaPosition = directionPlayerToDynamic * 
             (contactDynamicToPlayer.penetration / Vector3.Dot(contactDynamicToPlayer.face, directionPlayerToDynamic));
+        dynamicDeltaPosition.y = 0;
+        dynamicObject.transform.position += dynamicDeltaPosition;
     }
 
     private void PlayerVsStatic(CubeBehaviour staticObject, CubeBehaviour player)
     {        
         Contact contactPlayerToStatic = staticObject.contacts.Find(x => x.cube.gameObject.name == player.gameObject.name);
 
-        player.transform.position += (contactPlayerToStatic.penetration + 0.02f) * (contactPlayerToStatic.face);
+        player.transform.position += (contactPlayerToStatic.penetration) * (contactPlayerToStatic.face);
         for (int i = 0; i < 3; ++i)
         {
-            if (contactPlayerToStatic.face[i] != 0)
+            if (contactPlayerToStatic.face[i] * player.rigidBody.velocity[i] < 0)
             {
-                player.GetComponent<RigidBody3D>().velocity[i] = 0;
+                player.rigidBody.velocity[i] = 0;
             }
         }
     }
 
     private void DynamicVsStatic(CubeBehaviour dynamicObject, CubeBehaviour staticObject)
     {
-        Vector3 directionStaticToDynamic = (dynamicObject.transform.position - staticObject.transform.position).normalized;
+        Vector3 directionDynamicVelocity = dynamicObject.rigidBody.velocity.normalized;
         Contact contactDynamicToStatic = staticObject.contacts.Find(x => x.cube.gameObject.name == dynamicObject.gameObject.name);
 
-        dynamicObject.transform.position += directionStaticToDynamic *
-            (contactDynamicToStatic.penetration / Vector3.Dot(contactDynamicToStatic.face, directionStaticToDynamic));
-        dynamicObject.GetComponent<RigidBody3D>().velocity *= -1;
+        float dotProduct = Vector3.Dot(contactDynamicToStatic.face, -directionDynamicVelocity);
+        if (Mathf.Abs(dotProduct) > 0.001f)
+        {
+            dynamicObject.transform.position += -directionDynamicVelocity * ((contactDynamicToStatic.penetration) / dotProduct);
+        }
+        dynamicObject.rigidBody.velocity = Vector3.Reflect(dynamicObject.rigidBody.velocity, contactDynamicToStatic.face) * 0.5f;
     }
 
     public static void CheckSphereAABB(BulletBehaviour s, CubeBehaviour b)
@@ -275,7 +283,7 @@ public class CollisionManager : MonoBehaviour
                 aInListOfB.face = -face;
                 bInListOfA.penetration = aInListOfB.penetration = penetration;
 
-                result = false;
+                result = true;
             }
 
             if (bInListOfA.face == Vector3.down)

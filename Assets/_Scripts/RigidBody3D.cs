@@ -39,11 +39,11 @@ public class RigidBody3D : MonoBehaviour
                 velocity += new Vector3(0.0f, -gravity, 0.0f) * Time.deltaTime;
             }
             velocity += acceleration * Time.deltaTime;
-            //if (velocity.sqrMagnitude > 0.05f)
-            //{
-            //    transform.position += velocity;
-            //}
-            transform.position += velocity;
+            if (velocity.sqrMagnitude > 0.0005f)
+            {
+                transform.position += velocity;
+            }
+            //transform.position += velocity;
         }
     }
 }

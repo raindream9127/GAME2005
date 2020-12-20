@@ -49,7 +49,7 @@ public class Contact : IEquatable<Contact>
 }
 
 
-[System.Serializable]
+[System.Serializable,RequireComponent(typeof(RigidBody3D))]
 public class CubeBehaviour : MonoBehaviour
 {
     [Header("Cube Attributes")]
@@ -63,6 +63,7 @@ public class CubeBehaviour : MonoBehaviour
     private MeshFilter meshFilter;
     public Bounds bounds;
     public bool isGrounded;
+    public RigidBody3D rigidBody { get; private set; }
 
     // Start is called before the first frame update
     void Start()
@@ -71,6 +72,7 @@ public class CubeBehaviour : MonoBehaviour
         meshFilter = GetComponent<MeshFilter>();
         bounds = meshFilter.mesh.bounds;
         size = Vector3.Scale(bounds.size, transform.localScale);
+        rigidBody = GetComponent<RigidBody3D>();
     }
 
     // Update is called once per frame

@@ -13,21 +13,33 @@ public class PlayerBehaviour : MonoBehaviour
     public BulletManager bulletManager;
 
     [Header("Movement")]
-    public float speed;
+    public float controlledAcceleration;
+    public float playerSpeedLimit;
+    public float playerSpeedDamping;
+    public float jumpSpeed;
     public bool isGrounded;
-
+    private Vector3 controlledMovingSpeed;
 
     public RigidBody3D body;
     public CubeBehaviour cube;
     public Camera playerCam;
 
-    void start()
+    private enum MovingDirection:int
     {
+        LEFT = 0,
+        RIGHT = 1,
+        FORWARD = 2,
+        BACK = 3
+    }
+    private bool[] buttonPressed = new bool[4] { false, false, false, false };
 
+    void Start()
+    {
+        controlledMovingSpeed = Vector3.zero;
     }
 
     // Update is called once per frame
-    void Update()
+    public void PlayerUpdate()
     {
         _Fire();
         _Move();
@@ -35,41 +47,69 @@ public class PlayerBehaviour : MonoBehaviour
 
     private void _Move()
     {
-        if (isGrounded)
+        if (cube.isGrounded)
         {
-            Vector3 deltaPosition;
+            Vector3 accelerationDirection;
+            // Calculate player controlled moving speed apart from rigidbody simulation movement
             if (Input.GetAxisRaw("Horizontal") > 0.0f)
             {
                 // move right
-                body.velocity += playerCam.transform.right * speed;
+                accelerationDirection = playerCam.transform.right;
+                accelerationDirection.y = 0;
+                controlledMovingSpeed += accelerationDirection.normalized * controlledAcceleration * Time.deltaTime;
             }
 
             if (Input.GetAxisRaw("Horizontal") < 0.0f)
             {
                 // move left
-                body.velocity += -playerCam.transform.right * speed;
+                accelerationDirection = -playerCam.transform.right;
+                accelerationDirection.y = 0;
+                controlledMovingSpeed += accelerationDirection.normalized * controlledAcceleration * Time.deltaTime;
             }
 
             if (Input.GetAxisRaw("Vertical") > 0.0f)
             {
                 // move forward
-                body.velocity += playerCam.transform.forward * speed;
+                accelerationDirection = playerCam.transform.forward;
+                accelerationDirection.y = 0;
+                controlledMovingSpeed += accelerationDirection.normalized * controlledAcceleration * Time.deltaTime;
             }
 
             if (Input.GetAxisRaw("Vertical") < 0.0f) 
             {
                 // move Back
-                body.velocity += -playerCam.transform.forward * speed;
+                accelerationDirection = -playerCam.transform.forward;
+                accelerationDirection.y = 0;
+                controlledMovingSpeed += accelerationDirection.normalized * controlledAcceleration * Time.deltaTime;
             }
 
-            body.velocity = Vector3.Lerp(body.velocity, Vector3.zero, 0.9f);
-            body.velocity = new Vector3(body.velocity.x, 0.0f, body.velocity.z); // remove y            
+            // clamp speed
+            if (controlledMovingSpeed.sqrMagnitude > playerSpeedLimit * playerSpeedLimit)  
+            {
+                controlledMovingSpeed = controlledMovingSpeed.normalized * playerSpeedLimit; 
+            }
+
+            // damp speed
+            Vector3 dampingDeltaSpeed = controlledMovingSpeed.normalized * (-playerSpeedDamping) * Time.deltaTime;
+            if (controlledMovingSpeed.sqrMagnitude < dampingDeltaSpeed.sqrMagnitude)
+            {
+                controlledMovingSpeed = Vector3.zero;
+            }
+            else
+            {
+                controlledMovingSpeed += dampingDeltaSpeed;
+            }            
 
             if (Input.GetAxisRaw("Jump") > 0.0f)
             {
-                body.velocity = transform.up * speed * 0.1f;
+                body.velocity += new Vector3(0.0f, jumpSpeed, 0.0f);
+                cube.isGrounded = false;
+                body.isFalling = true;
             }
         }
+
+        // update the position with controlled speed and no damping in the air
+        transform.position += controlledMovingSpeed * Time.deltaTime;
     }
 
     private void _Fire()
@@ -85,15 +125,4 @@ public class PlayerBehaviour : MonoBehaviour
             }
         }
     }
-
-    void FixedUpdate()
-    {
-        GroundCheck();
-    }
-
-    private void GroundCheck()
-    {
-        isGrounded = cube.isGrounded;
-    }
-
 }
