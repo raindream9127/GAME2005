@@ -7,7 +7,7 @@ using UnityEngine;
 public class CollisionManager : MonoBehaviour
 {
     public CubeBehaviour[] cubes;
-    public BulletBehaviour[] spheres;
+    public BulletBehaviour[] bullets;
     public PlayerBehaviour player;
     [HideInInspector]
     public RigidBody3D[] rigidbodies;
@@ -42,7 +42,11 @@ public class CollisionManager : MonoBehaviour
         }
         player.PlayerUpdate();
 
-        spheres = FindObjectsOfType<BulletBehaviour>();
+        bullets = FindObjectsOfType<BulletBehaviour>();
+        foreach (var bullet in bullets)
+        {
+            bullet.BulletBehaviourUpdate();
+        }
 
         for (int i = 0; i < cubes.Length; ++i)
         {
@@ -94,20 +98,25 @@ public class CollisionManager : MonoBehaviour
                         {
                             PlayerVsStatic(cubes[i], cubes[j]);
                         }
+                        else if (cubes[i].gameObject.GetComponent<RigidBody3D>().bodyType == BodyType.DYNAMIC &&
+                            cubes[j].gameObject.GetComponent<RigidBody3D>().bodyType == BodyType.DYNAMIC)
+                        {
+                            DynamicVsDynamic(cubes[i], cubes[j]);
+                        }
                     }
                 }
             }
         }
 
         // Check each sphere against each AABB in the scene
-        foreach (var sphere in spheres)
+        foreach (var sphere in bullets)
         {
             foreach (var cube in cubes)
             {
                 if (cube.name != "Player")
                 {
-                    CheckSphereAABB(sphere, cube);
-                }                
+                    CheckAABBs(sphere, cube);
+                }
             }
         }
     }
@@ -117,10 +126,35 @@ public class CollisionManager : MonoBehaviour
         Vector3 directionPlayerToDynamic = (dynamicObject.transform.position - player.transform.position).normalized;
         Contact contactDynamicToPlayer = player.contacts.Find(x => x.cube.gameObject.name == dynamicObject.gameObject.name);
 
-        Vector3 dynamicDeltaPosition = directionPlayerToDynamic * 
-            (contactDynamicToPlayer.penetration / Vector3.Dot(contactDynamicToPlayer.face, directionPlayerToDynamic));
-        dynamicDeltaPosition.y = 0;
-        dynamicObject.transform.position += dynamicDeltaPosition;
+        float dotProduct = Vector3.Dot(contactDynamicToPlayer.face, directionPlayerToDynamic);
+        if (Mathf.Abs(dotProduct) > 0.001f)
+        {
+            Vector3 dynamicDeltaPosition = directionPlayerToDynamic * (contactDynamicToPlayer.penetration / dotProduct);
+            dynamicDeltaPosition.y = 0;
+            dynamicObject.transform.position += dynamicDeltaPosition;
+        }       
+    }
+
+    private void DynamicVsDynamic(CubeBehaviour a, CubeBehaviour b)
+    {
+        Contact bContact = a.contacts.Find(x => x.cube.gameObject.name == b.gameObject.name);
+        Vector3 aVelNormDir = Vector3.Project(a.rigidBody.velocity, bContact.face);
+        Vector3 aVelTangDir = a.rigidBody.velocity - aVelNormDir;
+        Vector3 bVelNormDir = Vector3.Project(b.rigidBody.velocity, bContact.face);
+        Vector3 bVelTangDir = b.rigidBody.velocity - bVelNormDir;
+
+        // Repositioning
+        float relativeSpeedNormDir = (aVelNormDir - bVelNormDir).magnitude;
+        float penetrateTime = bContact.penetration / relativeSpeedNormDir;
+        a.transform.position += -a.rigidBody.velocity * penetrateTime;
+        b.transform.position += -b.rigidBody.velocity * penetrateTime;
+
+        Vector3 aVelAfterColNormDir = ((a.rigidBody.mass - b.rigidBody.mass) * aVelNormDir +
+                    2 * b.rigidBody.mass * bVelNormDir) / (a.rigidBody.mass + b.rigidBody.mass);
+        Vector3 bVelAfterColNormDir = ((b.rigidBody.mass - a.rigidBody.mass) * bVelNormDir +
+            2 * a.rigidBody.mass * aVelNormDir) / (a.rigidBody.mass + b.rigidBody.mass);
+        a.rigidBody.velocity = aVelTangDir + aVelAfterColNormDir;
+        b.rigidBody.velocity = bVelTangDir + bVelAfterColNormDir;
     }
 
     private void PlayerVsStatic(CubeBehaviour staticObject, CubeBehaviour player)
@@ -148,6 +182,43 @@ public class CollisionManager : MonoBehaviour
             dynamicObject.transform.position += -directionDynamicVelocity * ((contactDynamicToStatic.penetration) / dotProduct);
         }
         dynamicObject.rigidBody.velocity = Vector3.Reflect(dynamicObject.rigidBody.velocity, contactDynamicToStatic.face) * 0.5f;
+    }
+
+    public static void CheckAABBs(BulletBehaviour a, CubeBehaviour b)
+    {
+        if ((a.min.x <= b.max.x && a.max.x >= b.min.x) &&
+            (a.min.y <= b.max.y && a.max.y >= b.min.y) &&
+            (a.min.z <= b.max.z && a.max.z >= b.min.z))
+        {
+            // determine the distances between the contact extents
+            float[] distances = {
+                (b.max.x - a.min.x),
+                (a.max.x - b.min.x),
+                (b.max.y - a.min.y),
+                (a.max.y - b.min.y),
+                (b.max.z - a.min.z),
+                (a.max.z - b.min.z)
+            };
+
+            float penetration = float.MaxValue;
+            Vector3 face = Vector3.zero;
+
+            // check each face to see if it is the one that connected
+            for (int i = 0; i < 6; i++)
+            {
+                if (distances[i] < penetration)
+                {
+                    // determine the penetration distance
+                    penetration = distances[i];
+                    face = faces[i];
+                }
+            }
+
+            a.penetration = penetration;
+            a.collisionNormal = face;
+
+            Reflect(a);
+        }
     }
 
     public static void CheckSphereAABB(BulletBehaviour s, CubeBehaviour b)
@@ -190,11 +261,9 @@ public class CollisionManager : MonoBehaviour
             s.penetration = penetration;
             s.collisionNormal = face;
             //s.isColliding = true;
-
-            
+                        
             Reflect(s);
         }
-
     }
     
     // This helper function reflects the bullet when it hits an AABB face

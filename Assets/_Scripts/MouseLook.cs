@@ -26,16 +26,16 @@ public class MouseLook : MonoBehaviour
         // Set target direction for the character body to its inital state.
         if (characterBody)
             targetCharacterDirection = characterBody.transform.localRotation.eulerAngles;
-    }
 
-    void Update()
-    {
         // Ensure the cursor is always locked when set
         if (lockCursor)
         {
             Cursor.lockState = CursorLockMode.Locked;
         }
+    }
 
+    void Update()
+    {
         // Allow the script to clamp based on a desired target value.
         var targetOrientation = Quaternion.Euler(targetDirection);
         var targetCharacterOrientation = Quaternion.Euler(targetCharacterDirection);

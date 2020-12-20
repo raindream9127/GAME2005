@@ -16,19 +16,31 @@ public class BulletBehaviour : MonoBehaviour
 
     public BulletManager bulletManager;
 
+    // Cube properties
+    private MeshFilter meshFilter;
+    public Bounds bounds;
+    public Vector3 size;
+    public Vector3 max;
+    public Vector3 min;
+
     // Start is called before the first frame update
     void Start()
     {
         isColliding = false;
         radius = Mathf.Max(transform.localScale.x, transform.localScale.y, transform.localScale.z) * 0.5f;
         bulletManager = FindObjectOfType<BulletManager>();
+
+        meshFilter = GetComponent<MeshFilter>();
+        bounds = meshFilter.mesh.bounds;
+        size = Vector3.Scale(bounds.size, transform.localScale);
     }
 
-    // Update is called once per frame
-    void Update()
+    public void BulletBehaviourUpdate()
     {
         _Move();
         _CheckBounds();
+        max = Vector3.Scale(bounds.max, transform.localScale) + transform.position;
+        min = Vector3.Scale(bounds.min, transform.localScale) + transform.position;
     }
 
     private void _Move()

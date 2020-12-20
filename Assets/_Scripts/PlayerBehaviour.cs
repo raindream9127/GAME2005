@@ -9,7 +9,6 @@ public class PlayerBehaviour : MonoBehaviour
     public GameObject bullet;
     public int fireRate;
 
-
     public BulletManager bulletManager;
 
     [Header("Movement")]
@@ -24,24 +23,23 @@ public class PlayerBehaviour : MonoBehaviour
     public CubeBehaviour cube;
     public Camera playerCam;
 
-    private enum MovingDirection:int
-    {
-        LEFT = 0,
-        RIGHT = 1,
-        FORWARD = 2,
-        BACK = 3
-    }
-    private bool[] buttonPressed = new bool[4] { false, false, false, false };
+    private float fireTimer, fireInterval;
 
     void Start()
     {
         controlledMovingSpeed = Vector3.zero;
+        fireTimer = 0.0f;
+        fireInterval = 1.0f / (float)fireRate;
+    }
+
+    void Update()
+    {        
+        _Fire();
     }
 
     // Update is called once per frame
     public void PlayerUpdate()
     {
-        _Fire();
         _Move();
     }
 
@@ -116,13 +114,18 @@ public class PlayerBehaviour : MonoBehaviour
     {
         if (Input.GetAxisRaw("Fire1") > 0.0f)
         {
+            fireTimer += Time.deltaTime;
             // delays firing
-            if (Time.frameCount % fireRate == 0)
+            if (fireTimer - fireInterval > 0)
             {
-
+                fireTimer -= fireInterval;
                 var tempBullet = bulletManager.GetBullet(bulletSpawn.position, bulletSpawn.forward);
                 tempBullet.transform.SetParent(bulletManager.gameObject.transform);
             }
+        }
+        else
+        {
+            fireTimer = 0.0f;
         }
     }
 }
